@@ -2,12 +2,12 @@ import fs from "fs";
 import axios from "axios";
 import ffmpeg from "ffmpeg-static";
 import { exec } from "child_process";
+import { sendInfo, sendStatus, sendClear } from "./main.js";
 
-async function downloadSegments(segments, playlistUrl) {
+async function downloadSegments(segments, playlistUrl, count) {
   if (!fs.existsSync("./segments")) {
     fs.mkdirSync("./segments");
   } else {
-    // очищаємо папку
     fs.readdirSync("./segments").forEach((file) => {
       fs.unlinkSync(`./segments/${file}`);
     });
@@ -16,7 +16,7 @@ async function downloadSegments(segments, playlistUrl) {
   for (let i = 0; i < segments.length; i++) {
     const url = new URL(segments[i], playlistUrl).href;
 
-    console.log("Downloading: segment", i + 1);
+    sendStatus(`Downloading: segment ${i + 1} of ${count}...`);
 
     const response = await axios.get(url, {
       responseType: "arraybuffer",
@@ -27,7 +27,7 @@ async function downloadSegments(segments, playlistUrl) {
 }
 
 function mergeSegments(count, name) {
-  console.log("Merging segments...");
+  sendStatus("Merging segments...");
   return new Promise((resolve, reject) => {
     let fileList = "";
 
@@ -57,18 +57,17 @@ function mergeSegments(count, name) {
 }
 
 export async function start(name, url) {
-  console.log("Name:", name);
-  console.log("URL:", url);
-
-  sendData(`Starting download for: ${name} from ${url}`);
-
-  return;
+  sendClear();
+  sendInfo(`Starting download`);
 
   if (!name || !url) {
     console.error("Name and URL are required!");
+    sendInfo("Error: Name and URL are required!");
+
     return;
   } else if (!url.endsWith(".m3u8")) {
     console.error("URL must end with .m3u8");
+    sendInfo("Error: URL must end with .m3u8!");
     return;
   }
 
@@ -80,6 +79,7 @@ export async function start(name, url) {
     .replace(/^-+|-+$/g, "");
   if (!transformedName) {
     console.error("Invalid name after transformation!");
+    sendInfo("Error: Invalid name after transformation!");
     return;
   }
 
@@ -89,9 +89,11 @@ export async function start(name, url) {
     .split("\n")
     .filter((line) => line && !line.startsWith("#"));
 
-  await downloadSegments(segments, playlistUrl);
+  sendInfo(`Found ${segments.length} segments. Starting download...`);
+
+  await downloadSegments(segments, playlistUrl, segments.length);
 
   await mergeSegments(segments.length, transformedName);
 
-  console.log("Video complete!");
+  sendStatus("Video complete!");
 }
