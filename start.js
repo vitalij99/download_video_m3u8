@@ -83,7 +83,7 @@ export async function start(name, url) {
 
     const transformedName = name
       .toLowerCase()
-      .replace(/[^\p{L}\p{N}]+/gu, " ")
+      .replace(/[^\p{L}\p{N}]+/gu, "_")
       .replace(/^-+|-+$/g, "");
     if (!transformedName) {
       console.error("Invalid name after transformation!");
@@ -150,6 +150,7 @@ export async function segmentsMerge() {
     console.log("Segments count:", segmentsCount);
 
     await mergeSegments(segmentsCount, name);
+    sendStatus("Segments merged successfully!");
   } catch (error) {
     console.error("An error occurred:", error);
     sendInfo(`Error: ${error.message}`);

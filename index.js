@@ -23,7 +23,7 @@ nextButton.addEventListener("click", async () => {
   const url = document.getElementById("url").value;
   const seriesValue = parseInt(series.value) || 1;
 
-  const name = `${namefirst} ${seriesValue}`;
+  const name = `${namefirst}_${seriesValue}`;
 
   series.value = seriesValue + 1;
 
