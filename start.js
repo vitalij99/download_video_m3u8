@@ -2,7 +2,8 @@ import fs from "fs";
 import axios from "axios";
 import ffmpeg from "ffmpeg-static";
 import { exec } from "child_process";
-import { sendInfo, sendStatus, sendClear } from "./main.js";
+import { sendInfo, sendStatus, sendClear, sendIsLoading } from "./main.js";
+import path from "path";
 
 async function downloadSegments(segments, playlistUrl, count) {
   if (!fs.existsSync("./segments")) {
@@ -37,6 +38,10 @@ function mergeSegments(count, name) {
 
     fs.writeFileSync("./segments/list.txt", fileList);
 
+    const info = name;
+
+    fs.writeFileSync("./segments/info.txt", info);
+
     if (!fs.existsSync("./video")) {
       fs.mkdirSync("./video");
     }
@@ -57,43 +62,99 @@ function mergeSegments(count, name) {
 }
 
 export async function start(name, url) {
-  sendClear();
-  sendInfo(`Starting download`);
+  try {
+    sendClear();
+    sendInfo(`Starting download`);
 
-  if (!name || !url) {
-    console.error("Name and URL are required!");
-    sendInfo("Error: Name and URL are required!");
+    sendIsLoading(true);
 
+    if (!name || !url) {
+      console.error("Name and URL are required!");
+      sendInfo("Error: Name and URL are required!");
+
+      return;
+    } else if (!url.endsWith(".m3u8")) {
+      console.error("URL must end with .m3u8");
+      sendInfo("Error: URL must end with .m3u8!");
+      return;
+    }
+
+    const playlistUrl = url;
+
+    const transformedName = name
+      .toLowerCase()
+      .replace(/[^\p{L}\p{N}]+/gu, " ")
+      .replace(/^-+|-+$/g, "");
+    if (!transformedName) {
+      console.error("Invalid name after transformation!");
+      sendInfo("Error: Invalid name after transformation!");
+      return;
+    }
+
+    const playlist = await axios.get(playlistUrl);
+
+    const segments = playlist.data
+      .split("\n")
+      .filter((line) => line && !line.startsWith("#"));
+
+    sendInfo(`Found ${segments.length} segments. Starting download...`);
+
+    await downloadSegments(segments, playlistUrl, segments.length);
+
+    await mergeSegments(segments.length, transformedName);
+
+    sendStatus("Video complete!");
+  } catch (error) {
+    console.error("An error occurred:", error);
+    sendInfo(`Error: ${error.message}`);
     return;
-  } else if (!url.endsWith(".m3u8")) {
-    console.error("URL must end with .m3u8");
-    sendInfo("Error: URL must end with .m3u8!");
-    return;
+  } finally {
+    sendIsLoading(false);
   }
+}
+export async function segmentsMerge() {
+  try {
+    sendClear();
+    sendInfo(`Starting segments merge`);
+    sendIsLoading(true);
 
-  const playlistUrl = url;
+    const segmentsDir = "./segments";
+    if (!fs.existsSync(segmentsDir)) {
+      console.error("Segments directory does not exist!");
+      sendInfo("Error: Segments directory does not exist!");
+      return;
+    }
 
-  const transformedName = name
-    .toLowerCase()
-    .replace(/[^\p{L}\p{N}]+/gu, "_")
-    .replace(/^-+|-+$/g, "");
-  if (!transformedName) {
-    console.error("Invalid name after transformation!");
-    sendInfo("Error: Invalid name after transformation!");
+    const infoFilePath = path.join(segmentsDir, "info.txt");
+    if (!fs.existsSync(infoFilePath)) {
+      console.error("Info file does not exist!");
+      sendInfo("Error: Info file does not exist!");
+      return;
+    }
+
+    const name = fs.readFileSync(infoFilePath, "utf-8").trim();
+
+    let fileList = "";
+
+    const segmentFiles = fs
+      .readdirSync(segmentsDir)
+      .filter((file) => file.endsWith(".ts"))
+      .sort((a, b) => parseInt(a) - parseInt(b))
+      .map((file) => (fileList += `file '${file}'\n` && file));
+
+    const segmentsCount = segmentFiles.length;
+
+    fs.writeFileSync("./segments/list.txt", fileList);
+
+    console.log("Name:", name);
+    console.log("Segments count:", segmentsCount);
+
+    await mergeSegments(segmentsCount, name);
+  } catch (error) {
+    console.error("An error occurred:", error);
+    sendInfo(`Error: ${error.message}`);
     return;
+  } finally {
+    sendIsLoading(false);
   }
-
-  const playlist = await axios.get(playlistUrl);
-
-  const segments = playlist.data
-    .split("\n")
-    .filter((line) => line && !line.startsWith("#"));
-
-  sendInfo(`Found ${segments.length} segments. Starting download...`);
-
-  await downloadSegments(segments, playlistUrl, segments.length);
-
-  await mergeSegments(segments.length, transformedName);
-
-  sendStatus("Video complete!");
 }

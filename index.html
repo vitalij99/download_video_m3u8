@@ -4,17 +4,21 @@
   <head>
     <meta charset="UTF-8" />
     <title>Video Downloader</title>
+    <link rel="stylesheet" href="style.css" />
   </head>
   <body>
     <h2>Video Downloader</h2>
 
-    <input id="name" placeholder="Video name" />
-    <br /><br />
+    <div class="nameContainer">
+      <input id="name" placeholder="Video name" />
+      <input id="series" value="1" min="0" type="number" />
+    </div>
 
-    <input id="url" placeholder="Video URL" />
-    <br /><br />
+    <input id="url" placeholder="Video URL .m3u8" />
 
     <button id="start">Start</button>
+    <button id="next">Next</button>
+    <button id="segments">Merge Segments video</button>
 
     <div id="info"></div>
     <p id="statusParagraph"></p>

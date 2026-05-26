@@ -1,0 +1,13 @@
+input {
+  width: 100%;
+  padding: 8px;
+  margin: 8px 0;
+  box-sizing: border-box;
+}
+.nameContainer {
+  display: flex;
+  gap: 8px;
+}
+#series {
+  width: 80px;
+}
