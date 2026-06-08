@@ -5,26 +5,102 @@ import { exec } from "child_process";
 import { sendInfo, sendStatus, sendClear, sendIsLoading } from "./main.js";
 import path from "path";
 
+async function downloadSegment(segment, playlistUrl, index, count) {
+  const url = new URL(segment, playlistUrl).href;
+
+  const response = await axios.get(url, {
+    responseType: "arraybuffer",
+    timeout: 30000,
+  });
+
+  sendStatus(`Downloading: segment ${index + 1} of ${count}...`);
+
+  if (response.status !== 200) {
+    throw new Error(`HTTP ${response.status}`);
+  }
+
+  fs.writeFileSync(`./segments/${index}.ts`, response.data);
+}
+
 async function downloadSegments(segments, playlistUrl, count) {
-  if (!fs.existsSync("./segments")) {
-    fs.mkdirSync("./segments");
-  } else {
-    fs.readdirSync("./segments").forEach((file) => {
-      fs.unlinkSync(`./segments/${file}`);
+  fs.rmSync("./segments", { recursive: true, force: true });
+  fs.mkdirSync("./segments");
+
+  const BATCH_SIZE = 25;
+  const failedFirstPass = [];
+
+  for (let i = 0; i < segments.length; i += BATCH_SIZE) {
+    const batch = segments.slice(i, i + BATCH_SIZE);
+
+    const results = await Promise.allSettled(
+      batch.map((segment, batchIndex) => {
+        const globalIndex = i + batchIndex;
+        return downloadSegment(segment, playlistUrl, globalIndex, count);
+      }),
+    );
+
+    results.forEach((result, batchIndex) => {
+      if (result.status === "rejected") {
+        const globalIndex = i + batchIndex;
+        failedFirstPass.push({
+          index: globalIndex,
+          segment: segments[globalIndex],
+          reason: result.reason?.message ?? String(result.reason),
+        });
+        sendInfo(
+          `Segment ${globalIndex + 1} failed (pass 1): ${result.reason?.message}`,
+        );
+      }
     });
   }
 
-  for (let i = 0; i < segments.length; i++) {
-    const url = new URL(segments[i], playlistUrl).href;
+  if (failedFirstPass.length === 0) return;
 
-    sendStatus(`Downloading: segment ${i + 1} of ${count}...`);
+  sendStatus(`Retrying ${failedFirstPass.length} failed segments...`);
 
-    const response = await axios.get(url, {
-      responseType: "arraybuffer",
-    });
+  // --- Retry pass ---
+  const stillFailed = [];
 
-    fs.writeFileSync(`./segments/${i}.ts`, response.data);
-  }
+  const retryResults = await Promise.allSettled(
+    failedFirstPass.map(({ segment, index }) =>
+      downloadSegment(segment, playlistUrl, index, count),
+    ),
+  );
+
+  retryResults.forEach((result, i) => {
+    if (result.status === "rejected") {
+      const { index, segment } = failedFirstPass[i];
+      stillFailed.push({
+        index,
+        segment,
+        reason: result.reason?.message ?? String(result.reason),
+      });
+      sendInfo(
+        `Segment ${index + 1} failed (pass 2): ${result.reason?.message}`,
+      );
+    }
+  });
+
+  if (stillFailed.length === 0) return;
+
+  // --- Write error report ---
+  const errorLines = stillFailed.map(
+    ({ index, segment, reason }) =>
+      `Segment ${index + 1}\nURL: ${new URL(segment, playlistUrl).href}\nReason: ${reason}\n`,
+  );
+
+  const errorReport = [
+    `Failed segments: ${stillFailed.length} of ${count}`,
+    `Date: ${new Date().toISOString()}`,
+    "",
+    ...errorLines,
+  ].join("\n");
+
+  fs.writeFileSync("./segments/errors.txt", errorReport, "utf-8");
+
+  throw new Error(
+    `${stillFailed.length} segment(s) failed after retry. See ./segments/errors.txt`,
+  );
 }
 
 function mergeSegments(count, name) {
