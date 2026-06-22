@@ -9,9 +9,12 @@ chrome.webRequest.onBeforeRequest.addListener(
   },
 );
 
-async function getVideoUrl(details) {
-  const videoTitle = await getTabTitle(details.tabId);
+let lastVideoUrl = null;
 
+async function getVideoUrl(details) {
+  if (details.url === lastVideoUrl) return;
+  const videoTitle = await getTabTitle(details.tabId);
+  lastVideoUrl = details.url;
   const message = {
     type: "videoUrl",
     url: details.url,
@@ -37,11 +40,18 @@ async function getTabTitle(tabId) {
 async function sendMessageToElectron(message) {
   // Implementation for sending message to Electron app
 
-  await fetch("http://localhost:3000/message", {
+  const response = await fetch("http://localhost:3333/message", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
     body: JSON.stringify(message),
   });
+  if (!response.ok) {
+    console.error(
+      "Failed to send message to Electron app:",
+      response.statusText,
+    );
+  }
+  lastVideoUrl = null;
 }
