@@ -53,5 +53,8 @@ async function sendMessageToElectron(message) {
       response.statusText,
     );
   }
-  lastVideoUrl = null;
+
+  setTimeout(() => {
+    lastVideoUrl = null;
+  }, 1000);
 }
