@@ -1,7 +1,7 @@
 import fs from "fs";
 import axios from "axios";
 import ffmpeg from "ffmpeg-static";
-import { exec } from "child_process";
+import { spawn } from "child_process";
 import { sendInfo, sendStatus, sendClear, sendIsLoading } from "./main.js";
 import path from "path";
 
@@ -105,6 +105,7 @@ async function downloadSegments(segments, playlistUrl, count) {
 
 function mergeSegments(count, name) {
   sendStatus("Merging segments...");
+
   return new Promise((resolve, reject) => {
     let fileList = "";
 
@@ -113,27 +114,44 @@ function mergeSegments(count, name) {
     }
 
     fs.writeFileSync("./segments/list.txt", fileList);
-
-    const info = name;
-
-    fs.writeFileSync("./segments/info.txt", info);
+    fs.writeFileSync("./segments/info.txt", name);
 
     if (!fs.existsSync("./video")) {
       fs.mkdirSync("./video");
     }
 
-    exec(
-      `"${ffmpeg}" -f concat -safe 0 -i list.txt -c copy ../video/${name}.mp4`,
-      { cwd: "./segments" },
-      (err, stdout, stderr) => {
-        if (err) {
-          reject(err);
-          return;
-        }
+    const args = [
+      "-y",
+      "-f",
+      "concat",
+      "-safe",
+      "0",
+      "-i",
+      "list.txt",
+      "-c",
+      "copy",
+      `../video/${name}.mp4`,
+    ];
 
-        resolve(stdout);
-      },
-    );
+    const ff = spawn(ffmpeg, args, {
+      cwd: "./segments",
+    });
+
+    let stderr = "";
+
+    ff.stderr.on("data", (data) => {
+      stderr += data.toString();
+    });
+
+    ff.on("close", (code) => {
+      if (code === 0) {
+        resolve(true);
+      } else {
+        reject(new Error(stderr));
+      }
+    });
+
+    ff.on("error", reject);
   });
 }
 

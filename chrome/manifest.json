@@ -1,0 +1,10 @@
+{
+  "manifest_version": 3,
+  "name": "GET video downloader",
+  "version": "1.0",
+  "permissions": ["webRequest"],
+  "host_permissions": ["<all_urls>"],
+  "background": {
+    "service_worker": "background.js"
+  }
+}

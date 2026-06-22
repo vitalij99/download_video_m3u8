@@ -10,4 +10,6 @@ contextBridge.exposeInMainWorld("electronAPI", {
   onClear: (callback) => ipcRenderer.on("from-main-clear", () => callback()),
   onIsLoading: (callback) =>
     ipcRenderer.on("from-main-isLoading", () => callback()),
+  onChromeMessage: (callback) =>
+    ipcRenderer.on("from-chrome", (_, data) => callback(data)),
 });

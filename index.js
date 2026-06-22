@@ -50,3 +50,17 @@ window.electronAPI.onIsLoading(() => {
   nextButton.disabled = !nextButton.disabled;
   segmentsButton.disabled = !segmentsButton.disabled;
 });
+window.electronAPI.onChromeMessage((data) => {
+  const p = document.createElement("p");
+  const title = data.title || "No title";
+  p.textContent = `Video from Chrome: ${title}, URL: ${data.url}`;
+  info.appendChild(p);
+
+  const name = document.getElementById("name");
+  const url = document.getElementById("url");
+
+  if (name.value === "") {
+    name.value = title;
+  }
+  url.value = data.url;
+});
